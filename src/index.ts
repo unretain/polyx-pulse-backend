@@ -107,8 +107,8 @@ function connectToPumpPortal() {
           }
         }
 
-        // Try to get image from pump.fun CDN first (faster)
-        logo = `https://pump.mypinata.cloud/ipfs/${message.mint}?img-width=256`;
+        // Use pump.fun's direct image endpoint (works with mint address)
+        logo = `https://pump.fun/coin/${message.mint}/image`;
 
         const token: Token = {
           address: message.mint,
