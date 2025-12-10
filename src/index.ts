@@ -47,18 +47,25 @@ function addToken(token: Token) {
 // Fetch actual image URL from metadata
 async function fetchImageFromMetadata(metadataUrl: string): Promise<string | undefined> {
   try {
-    const response = await fetch(metadataUrl, { signal: AbortSignal.timeout(3000) });
-    if (!response.ok) return undefined;
+    console.log(`[Image] Fetching metadata from: ${metadataUrl}`);
+    const response = await fetch(metadataUrl, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) {
+      console.log(`[Image] Metadata fetch failed: ${response.status}`);
+      return undefined;
+    }
     const metadata = (await response.json()) as { image?: string };
     if (metadata.image) {
       // Handle IPFS URLs in metadata
+      let imageUrl = metadata.image;
       if (metadata.image.startsWith('ipfs://')) {
-        return `https://ipfs.io/ipfs/${metadata.image.replace('ipfs://', '')}`;
+        imageUrl = `https://ipfs.io/ipfs/${metadata.image.replace('ipfs://', '')}`;
       }
-      return metadata.image;
+      console.log(`[Image] Got image URL: ${imageUrl}`);
+      return imageUrl;
     }
-  } catch {
-    // Timeout or error - just skip
+    console.log(`[Image] No image field in metadata`);
+  } catch (err) {
+    console.log(`[Image] Metadata fetch error: ${err}`);
   }
   return undefined;
 }
@@ -135,9 +142,14 @@ function connectToPumpPortal() {
               const idx = tokens.findIndex((t) => t.address === token.address);
               if (idx !== -1) {
                 tokens[idx].logo = imageUrl;
+                console.log(`[Image] Updated ${token.symbol} with image`);
+              } else {
+                console.log(`[Image] Token ${token.symbol} not found in list for update`);
               }
             }
           });
+        } else {
+          console.log(`[Image] No metadata URL for ${token.symbol}`);
         }
       }
     } catch (err) {
