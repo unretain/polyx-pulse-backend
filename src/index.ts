@@ -143,17 +143,17 @@ async function fetchFromMoralis() {
 
     if (!response.ok) return;
 
-    const data = await response.json();
+    const data = (await response.json()) as { result?: Array<Record<string, unknown>> };
     if (data.result && Array.isArray(data.result)) {
       for (const item of data.result.slice(0, 30)) {
         const token: Token = {
-          address: item.tokenAddress || item.address,
-          symbol: item.symbol || 'UNKNOWN',
-          name: item.name || 'Unknown',
-          logo: item.logo || item.image,
-          price: parseFloat(item.priceUsd || item.price || '0'),
-          marketCap: parseFloat(item.marketCapUsd || item.marketCap || '0'),
-          createdAt: item.createdAt || new Date().toISOString(),
+          address: (item.tokenAddress || item.address) as string,
+          symbol: (item.symbol || 'UNKNOWN') as string,
+          name: (item.name || 'Unknown') as string,
+          logo: (item.logo || item.image) as string | undefined,
+          price: parseFloat(String(item.priceUsd || item.price || '0')),
+          marketCap: parseFloat(String(item.marketCapUsd || item.marketCap || '0')),
+          createdAt: (item.createdAt as string) || new Date().toISOString(),
           fetchedAt: Date.now(),
         };
         addToken(token);
