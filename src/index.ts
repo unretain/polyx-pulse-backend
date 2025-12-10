@@ -44,6 +44,25 @@ function addToken(token: Token) {
   }
 }
 
+// Fetch actual image URL from metadata
+async function fetchImageFromMetadata(metadataUrl: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(metadataUrl, { signal: AbortSignal.timeout(3000) });
+    if (!response.ok) return undefined;
+    const metadata = (await response.json()) as { image?: string };
+    if (metadata.image) {
+      // Handle IPFS URLs in metadata
+      if (metadata.image.startsWith('ipfs://')) {
+        return `https://ipfs.io/ipfs/${metadata.image.replace('ipfs://', '')}`;
+      }
+      return metadata.image;
+    }
+  } catch {
+    // Timeout or error - just skip
+  }
+  return undefined;
+}
+
 // PumpPortal WebSocket connection
 const PUMP_PORTAL_WS = 'wss://pumpportal.fun/api/data';
 let ws: WebSocket | null = null;
@@ -68,23 +87,28 @@ function connectToPumpPortal() {
     );
   });
 
-  ws.on('message', (data) => {
+  ws.on('message', async (data) => {
     try {
       const message = JSON.parse(data.toString());
 
       // Handle new token creation events
       if (message.txType === 'create' && message.mint) {
-        // Parse logo URL properly
+        // Build metadata URL to fetch the actual image
         let logo: string | undefined;
+        let metadataUrl: string | undefined;
+
         if (message.uri) {
           if (message.uri.startsWith('ipfs://')) {
-            logo = `https://ipfs.io/ipfs/${message.uri.replace('ipfs://', '')}`;
+            metadataUrl = `https://ipfs.io/ipfs/${message.uri.replace('ipfs://', '')}`;
           } else if (message.uri.startsWith('http')) {
-            logo = message.uri;
+            metadataUrl = message.uri;
           } else {
-            logo = `https://ipfs.io/ipfs/${message.uri}`;
+            metadataUrl = `https://ipfs.io/ipfs/${message.uri}`;
           }
         }
+
+        // Try to get image from pump.fun CDN first (faster)
+        logo = `https://pump.mypinata.cloud/ipfs/${message.mint}?img-width=256`;
 
         const token: Token = {
           address: message.mint,
@@ -102,6 +126,19 @@ function connectToPumpPortal() {
 
         addToken(token);
         console.log(`[PumpPortal] New token: ${token.symbol} (${token.address.slice(0, 8)}...)`);
+
+        // Async: Try to fetch better image from metadata (don't block)
+        if (metadataUrl) {
+          fetchImageFromMetadata(metadataUrl).then((imageUrl) => {
+            if (imageUrl) {
+              // Update token with actual image
+              const idx = tokens.findIndex((t) => t.address === token.address);
+              if (idx !== -1) {
+                tokens[idx].logo = imageUrl;
+              }
+            }
+          });
+        }
       }
     } catch (err) {
       // Ignore parse errors for non-JSON messages
